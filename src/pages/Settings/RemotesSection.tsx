@@ -1,3 +1,4 @@
+import { useAutoAnimate } from '@formkit/auto-animate/react'
 import {
     Button,
     Card,
@@ -22,7 +23,15 @@ import {
     SettingsIcon,
     Trash2Icon,
 } from 'lucide-react'
-import { type ReactNode, startTransition, useEffect, useMemo, useRef, useState } from 'react'
+import {
+    type ReactNode,
+    startTransition,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { onErrorDialog } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
@@ -85,6 +94,10 @@ export default function RemotesSection() {
     const [searchParams] = useSearchParams()
     const licenseValid = usePersistedStore((state) => state.licenseValid)
 
+    const [editingDrawerOpen, setEditingDrawerOpen] = useState(false)
+    const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
+    const [autoMountDrawerOpen, setAutoMountDrawerOpen] = useState(false)
+
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
         queryFn: async () => {
@@ -95,6 +108,7 @@ export default function RemotesSection() {
             return remotes
         },
         staleTime: 1000 * 60, // 1 minute
+        enabled: !editingDrawerOpen && !creatingDrawerOpen && !autoMountDrawerOpen,
     })
 
     const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data])
@@ -136,11 +150,54 @@ export default function RemotesSection() {
         overscan: 6,
     })
 
-    const [pickedRemote, setPickedRemote] = useState<string | null>(null)
+    // Entrance animation for the list's first appearance only. Inactive tab
+    // panels are display:none, so the scroll element measures 0 until the
+    // Remotes tab is shown; rows are held back until then, animate in as they
+    // are added, and auto-animate is switched off afterwards so scrolling
+    // (rows mounting/unmounting) and later edits stay instant.
+    const [animateListRef, setListAnimated] = useAutoAnimate()
+    const listEl = useRef<HTMLDivElement | null>(null)
+    // Stable identity: a fresh callback each render would re-attach the ref
+    // (null → el) every time, and auto-animate's ref sets state → render loop.
+    const listRef = useCallback(
+        (el: HTMLDivElement | null) => {
+            listEl.current = el
+            animateListRef(el)
+        },
+        [animateListRef]
+    )
+    const listVisible = (rowVirtualizer.scrollRect?.height ?? 0) > 0
+    // auto-animate also FLIP-animates the list container itself on every
+    // mutation, from the position it last measured. Attached while the panel
+    // is hidden it would cache a 0×0 rect and, on the first mutation, slide the
+    // whole list in from the panel's corner. So the controller is attached
+    // only once the list is visible, and the rows are added one commit later —
+    // the mutation auto-animate needs to see for the rows' entrance.
+    const [rowsReady, setRowsReady] = useState(false)
+    useEffect(() => {
+        if (listVisible) setRowsReady(true)
+    }, [listVisible])
+    const virtualItems = listVisible && rowsReady ? rowVirtualizer.getVirtualItems() : []
+    const hasAnimatedIn = useRef(false)
+    useEffect(() => {
+        if (hasAnimatedIn.current || virtualItems.length === 0) return
+        hasAnimatedIn.current = true
+        let cancelled = false
+        // Disabling cancels in-flight animations, so wait for the entrance
+        // animations (created by auto-animate's mutation observer, a
+        // microtask after this commit) to finish before switching it off.
+        const id = setTimeout(async () => {
+            const entrances = listEl.current?.getAnimations({ subtree: true }) ?? []
+            await Promise.allSettled(entrances.map((animation) => animation.finished))
+            if (!cancelled) setListAnimated(false)
+        }, 0)
+        return () => {
+            cancelled = true
+            clearTimeout(id)
+        }
+    }, [virtualItems.length, setListAnimated])
 
-    const [editingDrawerOpen, setEditingDrawerOpen] = useState(false)
-    const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
-    const [autoMountDrawerOpen, setAutoMountDrawerOpen] = useState(false)
+    const [pickedRemote, setPickedRemote] = useState<string | null>(null)
 
     const deleteRemoteMutation = useMutation({
         mutationFn: async (remote: string) => {
@@ -293,21 +350,23 @@ export default function RemotesSection() {
                         className="overflow-y-auto overscroll-none max-h-[calc(100dvh-14rem)] pb-10"
                     >
                         <div
+                            ref={listVisible ? listRef : undefined}
                             style={{
                                 height: `${rowVirtualizer.getTotalSize()}px`,
                                 position: 'relative',
                                 width: '100%',
                             }}
                         >
-                            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                            {virtualItems.map((virtualRow) => {
                                 const row = rows[virtualRow.index]
+                                // Offset via `top`, not translateY: the entrance
+                                // animation drives `transform` and would override it.
                                 const style = {
                                     position: 'absolute',
-                                    top: 0,
+                                    top: `${virtualRow.start}px`,
                                     left: 0,
                                     width: '100%',
                                     height: `${virtualRow.size}px`,
-                                    transform: `translateY(${virtualRow.start}px)`,
                                 } as const
 
                                 if (row.type === 'header') {
