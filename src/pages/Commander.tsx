@@ -37,6 +37,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { onErrorDialog, reportError } from '../../lib/errors'
 import { getFsInfo } from '../../lib/format'
+import { useIsPreview } from '../../lib/preview'
 // import { Document, Page, pdfjs } from 'react-pdf'
 import { formatBytes } from '../../lib/format.ts'
 import { notify } from '../../lib/notifications'
@@ -524,6 +525,7 @@ function TransferItem({
     }
     status: 'transferring' | 'checking' | 'done' | 'error'
 }) {
+    const isPreview = useIsPreview()
     const fileName = item.name?.split('/').pop() || item.name || 'Unknown'
 
     return (
@@ -562,6 +564,7 @@ function TransferItem({
                     <div className="flex items-center gap-2">
                         <Progress
                             value={item.percentage || 0}
+                            disableAnimation={isPreview}
                             size="sm"
                             color={status === 'checking' ? 'warning' : 'primary'}
                             className="flex-1"

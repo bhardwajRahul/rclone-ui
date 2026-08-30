@@ -181,7 +181,7 @@ export default function RemotesSection() {
         if (remotes.length === 0 && !creatingDrawerOpen) {
             return withRoot(
                 <div className="flex flex-col items-center justify-center gap-8">
-                    <h1 className="text-2xl font-bold">No remotes found</h1>
+                    <h1 className="text-2xl font-bold">Add your first remote!</h1>
                     <Button
                         onPress={() => setCreatingDrawerOpen(true)}
                         color="primary"
@@ -449,6 +449,7 @@ function RemoteCard({
     return (
         <Card
             key={remote}
+            data-remote={remote}
             shadow="sm"
             isBlurred={true}
             className="w-full h-20 border-[0.5px] dark:border-none border-divider bg-content3/50 dark:bg-content2/90"
