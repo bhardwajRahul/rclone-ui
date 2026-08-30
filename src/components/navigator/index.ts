@@ -1,3 +1,5 @@
+export { default as BatchRenameDrawer } from './BatchRenameDrawer'
+export { default as CompareDrawer, type PanelLocation } from './CompareDrawer'
 export { default as FilePanel, type FilePanelHandle } from './FilePanel'
 export { default as FileIcon, getFileType, isPreviewable } from './FileIcon'
 export { default as FileList } from './FileList'

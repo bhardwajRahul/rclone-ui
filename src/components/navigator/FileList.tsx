@@ -28,6 +28,7 @@ export default function FileList({
     onRename,
     onDelete,
     listHeight,
+    columnTemplate,
 }: {
     items: (VirtualizedEntry | PaddingItem)[]
     isLoading: boolean
@@ -49,6 +50,8 @@ export default function FileList({
     onRename?: (entry: Entry) => void
     onDelete?: (entry: Entry) => void
     listHeight: number
+    /** The panel header's grid template — rows must line up with it (see useNameColumnResize). */
+    columnTemplate: string
 }) {
     const showCheckbox = selectionMode === 'checkbox' || selectionMode === 'both'
 
@@ -163,10 +166,6 @@ export default function FileList({
         )
     }
 
-    const gridCols = showPreviewColumn
-        ? 'grid-cols-[2.5rem_1fr_6rem_9rem_11rem]'
-        : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'
-
     return (
         <Listbox
             items={items}
@@ -218,9 +217,10 @@ export default function FileList({
                     >
                         <div
                             className={cn(
-                                `grid ${gridCols} items-center hover:bg-content2 py-2 border-b border-divider group transition-colors w-full h-full`,
+                                'grid items-center hover:bg-content2 py-2 border-b border-divider group transition-colors w-full h-full',
                                 isSelected ? 'bg-primary-50 hover:bg-primary-100' : ''
                             )}
+                            style={{ gridTemplateColumns: columnTemplate }}
                             draggable={draggable}
                             onDragStart={(e) => handleDragStart(entry, e)}
                             onDragEnd={handleDragEnd}
