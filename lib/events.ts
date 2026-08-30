@@ -21,6 +21,16 @@ export interface RestartRclonePayload {
     syncConfigLinkTarget?: string | null
 }
 
+// Deep-link payload forwarded from the main window to an already-open 'Templates' window
+// (lib/deep.ts → src/pages/Templates.tsx). Not part of AppEventPayload: it targets a specific
+// window via emitTo, not the main-window listeners.
+export const ADD_TEMPLATE = 'add-template'
+
+export interface AddTemplatePayload {
+    cmd?: string
+    name?: string
+}
+
 export type AppEventPayload = {
     [CLOSE_APP]: undefined
     [RELAUNCH_APP]: undefined
