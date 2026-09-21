@@ -2,13 +2,13 @@ name: release-cloud
 
 # Releases the cloud branch, and only the cloud branch. Run it by hand ("Run workflow"): it builds
 # cloud's latest commit at the version in its Cargo.toml, tags that commit cloud-v<version>, and
-# publishes the binaries, the update manifest and the container image.
+# publishes the binaries and the update manifest on a GitHub release. The container image is
+# release-cloud-docker's.
 on:
   workflow_dispatch:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   # Picks the commit to release, cloud's latest, which every job then builds, and reads its version.
@@ -94,7 +94,9 @@ jobs:
             cp target/release/rclone-cloud out/cloud/rclone-cloud-${{ matrix.target }}
           fi
       # Signs each binary with the minisign key in TAURI_SIGNING_PRIVATE_KEY. The server's updater
-      # (src/updater.rs) checks that signature before it installs an update.
+      # (src/updater.rs) checks that signature before it installs an update. Only these binaries
+      # update themselves: in a container, the Docker image included, updates are off entirely,
+      # and a new version comes with a new image.
       - name: Sign
         shell: bash
         env:
@@ -120,7 +122,8 @@ jobs:
 
   # Writes `cloud-latest.json`, which a running rclone-cloud reads to update itself: one entry per
   # platform (`cloud-<os>-<arch>`) with the binary's URL and signature. It goes on this version's
-  # release and on the rolling `cloud-latest` release, whose URL never changes.
+  # release and on the rolling `cloud-latest` release, whose URL never changes. A server in a
+  # container, the Docker image included, never reads it: updates are off there entirely.
   manifest:
     needs: [prepare, binaries]
     runs-on: ubuntu-latest
@@ -168,37 +171,3 @@ jobs:
           files: cloud-latest.json
           make_latest: false
 
-  image:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/rclone-cloud
-          tags: |
-            type=raw,value=${{ needs.prepare.outputs.version }}
-            type=raw,value=latest
-            type=raw,value=sha-${{ needs.prepare.outputs.short }}
-          labels: |
-            org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}
-            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
