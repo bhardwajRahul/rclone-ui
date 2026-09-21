@@ -66,8 +66,10 @@ jobs:
             target: linux-aarch64
           - os: macos-14
             target: macos-aarch64
-          - os: macos-13
+          # Intel macOS is cross-compiled on the Apple Silicon runner.
+          - os: macos-14
             target: macos-x86_64
+            rust_target: x86_64-apple-darwin
           - os: windows-latest
             target: windows-x86_64
     runs-on: ${{ matrix.os }}
@@ -83,7 +85,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: '. -> target'
-      - run: cargo build --release
+      - if: ${{ !matrix.rust_target }}
+        run: cargo build --release
+      - name: Cross-compile
+        if: ${{ matrix.rust_target }}
+        env:
+          RUST_TARGET: ${{ matrix.rust_target }}
+        run: |
+          rustup target add "$RUST_TARGET"
+          cargo build --release --target "$RUST_TARGET"
+          mkdir -p target/release
+          cp "target/$RUST_TARGET/release/rclone-cloud" target/release/rclone-cloud
       - name: Package
         shell: bash
         run: |
